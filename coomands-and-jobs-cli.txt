@@ -1,0 +1,93 @@
+## Jobs running steps
+
+## job creation step for nyc data transformation 
+aws glue create-job \
+    --name "nyc-taxi-transform-job" \
+    --role "arn:aws:iam::464899062573:role/trainee-datalake-creater-role" \
+    --command '{"Name": "glueetl", "ScriptLocation": "s3://training-s3-data-lake/scripts/nyctransformation.py", "PythonVersion": "3"}' \
+    --glue-version "4.0" \
+    --worker-type "G.1X" \
+    --number-of-workers 2
+
+## start job creation
+    aws glue start-job-run --job-name "nyc-taxi-transform-job"
+
+# Create the Gold Job
+aws glue create-job \
+    --name "nyc-taxi-silver-to-gold" \
+    --glue-version "4.0" \
+    --role "arn:aws:iam::464899062573:role/trainee-datalake-creater-role" \
+    --command '{"Name": "glueetl", "ScriptLocation": "s3://training-s3-data-lake/scripts/nyctaxigolddatacreation.py"}' \
+    --default-arguments '{"--enable-glue-datacatalog": "true"}'\
+    --worker-type "G.1X" \
+    --number-of-workers 2
+
+# Run the Gold Job start
+aws glue start-job-run --job-name "nyc-taxi-silver-to-gold"
+
+# Create the Gold Job
+
+aws glue create-job \
+    --name "Yellow-taxi-quality-check-etl" \
+    --role "arn:aws:iam::464899062573:role/trainee-datalake-creater-role" \
+    --glue-version "3.0" \
+    --command '{"Name": "glueetl", "ScriptLocation": "s3://training-s3-data-lake/scripts/GlueETLtransformation.py", "PythonVersion": "3"}' \
+    --default-arguments '{"--enable-glue-datacatalog": "true"}' \
+    --worker-type "G.1X" \
+    --number-of-workers 2
+
+
+    
+## start the job
+    aws glue start-job-run --job-name "Yellow-taxi-quality-check-etl"
+
+## check job status (put job id )
+    aws glue get-job-run --job-name "Yellow-taxi-quality-check-etl" --run-id  <job-id>
+
+## update script if need to update
+
+  aws glue update-job \
+    --job-name "Yellow-taxi-quality-check-etl" \
+    --job-update "{
+        \"Role\": \"arn:aws:iam::464899062573:role/trainee-datalake-creater-role\",
+        \"GlueVersion\": \"4.0\",
+        \"Command\": {
+            \"Name\": \"glueetl\",
+            \"ScriptLocation\": \"s3://training-s3-data-lake/scripts/GlueETLtransformation.py\",
+            \"PythonVersion\": \"3\"
+        }
+    }"
+
+
+    # Delete the old job
+aws glue delete-job --job-name "Yellow-taxi-quality-check-etl"
+
+# Create it fresh as a 4.0 job
+aws glue create-job \
+    --name "Yellow-taxi-quality-check-etl" \
+    --role "arn:aws:iam::464899062573:role/trainee-datalake-creater-role" \
+    --glue-version "4.0" \
+    --worker-type "G.1X" \
+    --number-of-workers 10 \
+    --command '{"Name": "glueetl", "ScriptLocation": "s3://training-s3-data-lake/scripts/GlueETLtransformation.py", "PythonVersion": "3"}' \
+    --default-arguments '{"--DQ_RESULTS_PATH": "s3://training-s3-data-lake/clean-taxi-data/"}'
+
+
+## delete the job script
+aws glue delete-job --job-name "Yellow-taxi-quality-check-etl"
+
+
+# 1. Get the list of policies attached to your Glue role
+aws iam list-role-policies --role-name trainee-datalake-creater-role
+
+# 2. Get the details of a specific inline policy 
+aws iam get-role-policy --role-name trainee-datalake-creater-role --policy-name lakeformation-access
+
+# 3. Check for attached managed policies
+aws iam list-attached-role-policies --role-name trainee-datalake-creater-role
+
+
+## job starting with external path or attribute
+aws glue start-job-run \
+    --job-name "Yellow-taxi-quality-check-etl" \
+    --arguments '{"--DATA_QUALITY_S3_PATH": "s3://training-s3-data-lake/clean-taxi-data/"}'
